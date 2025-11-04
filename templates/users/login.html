@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Login - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .webcam-container {
+        width: 100%;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+    
+    #webcam {
+        width: 100%;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .auth-tabs .nav-link {
+        color: var(--primary-color);
+    }
+    
+    .auth-tabs .nav-link.active {
+        color: var(--secondary-color);
+        font-weight: 600;
+    }
+    h2{
+        color: #ddd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body p-4">
+                <h2 class="text-center mb-4">Login</h2>
+                
+                <!-- Authentication Tabs -->
+                <ul class="nav nav-tabs auth-tabs mb-4" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#password-auth" type="button">
+                            <i class="fas fa-key me-2"></i>Password
+                        </button>
+                    </li>
+                    {% if enable_face_login %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#face-auth" type="button">
+                            <i class="fas fa-camera me-2"></i>Face ID
+                        </button>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <!-- Tab Content -->
+                <div class="tab-content">
+                    <!-- Password Authentication -->
+                    <div class="tab-pane fade show active" id="password-auth">
+                        <form method="post">
+                            {% csrf_token %}
+                            {{ form|crispy }}
+                            <button type="submit" class="btn btn-primary w-100 mt-3">
+                                <i class="fas fa-sign-in-alt me-2"></i>Login
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Face Authentication -->
+                    {% if enable_face_login %}
+                    <div class="tab-pane fade" id="face-auth">
+                        <div class="text-center mb-3">
+                            <input type="text" id="face-username" class="form-control" placeholder="Enter your username">
+                        </div>
+                        <div class="webcam-container">
+                            <video id="webcam" autoplay playsinline></video>
+                            <button id="capture-btn" class="btn btn-primary w-100">
+                                <i class="fas fa-camera me-2"></i>Capture and Login
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mt-4 text-center">
+                    <p class="mb-0" style="color: #ddd;">
+                        Don't have an account? 
+                        <a href="{% url 'signup' %}" class="text-primary">Sign up</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if enable_face_login %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let video = document.getElementById('webcam');
+    let captureBtn = document.getElementById('capture-btn');
+    let stream = null;
+    
+    // Switch to face auth tab
+    document.querySelector('button[data-bs-target="#face-auth"]').addEventListener('click', async () => {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        } catch (err) {
+            console.error('Error accessing webcam:', err);
+            alert('Could not access webcam. Please ensure you have granted camera permissions.');
+        }
+    });
+    
+    // Switch from face auth tab
+    document.querySelector('button[data-bs-target="#password-auth"]').addEventListener('click', () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+    });
+    
+    // Capture and verify face
+    captureBtn.addEventListener('click', async () => {
+        const username = document.getElementById('face-username').value;
+        if (!username) {
+            alert('Please enter your username');
+            return;
+        }
+        
+        // Create canvas and capture frame
+        let canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        
+        // Convert to base64
+        let imageData = canvas.toDataURL('image/jpeg');
+        
+        try {
+            const response = await fetch('{% url "face-login" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    username: username,
+                    image: imageData
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                window.location.href = data.redirect_url;
+            } else {
+                alert(data.message || 'Face verification failed');
+            }
+        } catch (err) {
+            console.error('Error during face verification:', err);
+            alert('An error occurred during face verification');
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %} 

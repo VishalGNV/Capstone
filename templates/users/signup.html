@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Sign Up - {{ block.super }}{% endblock %}
+
+
+
+{% block content %}
+<style>
+    h2{
+        color: #ddd;
+    }
+    .form-text{
+        color: #ddd;
+    }
+</style>
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body p-4">
+                <h2 class="text-center mb-4">Create Account</h2>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form|crispy }}
+                    
+                    <button type="submit" class="btn btn-primary w-100 mt-3">
+                        <i class="fas fa-user-plus me-2"></i>Sign Up
+                    </button>
+                </form>
+                
+                <div class="mt-4 text-center">
+                    <p class="mb-0" style="color: #ddd;">
+                        Already have an account? 
+                        <a href="{% url 'login' %}" class="text-primary">Login</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Access Logs - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2 class="mb-0">Access Logs</h2>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if logs %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>File</th>
+                            <th>IP Address</th>
+                            <th>Browser</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                            <tr>
+                                <td>
+                                    {% if log.access_type == 'upload' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-upload me-1"></i>Upload
+                                        </span>
+                                    {% elif log.access_type == 'download' %}
+                                        <span class="badge bg-primary">
+                                            <i class="fas fa-download me-1"></i>Download
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-trash me-1"></i>Delete
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="fw-medium">{{ log.file.original_filename }}</div>
+                                    <small class="text-muted">{{ log.file.file_type }}</small>
+                                </td>
+                                <td>
+                                    {% if log.ip_address %}
+                                        {{ log.ip_address }}
+                                    {% else %}
+                                        <span class="text-muted">Not available</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.user_agent %}
+                                        <small class="text-muted">{{ log.user_agent|truncatechars:50 }}</small>
+                                    {% else %}
+                                        <span class="text-muted">Not available</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div>{{ log.timestamp|date:"M d, Y" }}</div>
+                                    <small class="text-muted">{{ log.timestamp|time:"H:i:s" }}</small>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                <h5>No activity logs yet</h5>
+                <p class="text-muted">Activity logs will appear here when you start using the vault</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

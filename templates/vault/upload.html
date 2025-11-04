@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Upload File - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #ddd;
+        border-radius: 8px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        background-color: #f8f9fa00;
+    }
+    
+    .upload-area.dragover {
+        border-color: var(--secondary-color);
+        background-color: rgba(52, 152, 219, 0.1);
+    }
+    
+    .upload-icon {
+        font-size: 3rem;
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    
+    #file-input {
+        display: none;
+    }
+    
+    .selected-file {
+        margin-top: 1rem;
+        padding: 0.5rem;
+        background-color: #fff;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    h5,h2{
+        color: #ddd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body p-4">
+                <h2 class="text-center mb-4">Upload File</h2>
+                
+                <form method="post" enctype="multipart/form-data" id="upload-form">
+                    {% csrf_token %}
+                    
+                    <div class="upload-area mb-4" id="drop-area">
+                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                        <h5>Drag and drop your file here</h5>
+                        <p class="text-muted mb-3">or</p>
+                        <button type="button" class="btn btn-primary" id="browse-btn">
+                            <i class="fas fa-folder-open me-2"></i>Browse Files
+                        </button>
+                        <input type="file" name="file" id="file-input" required>
+                        <div id="selected-file" class="selected-file" style="display: none;">
+                            <i class="fas fa-file me-2"></i>
+                            <span id="file-name"></span>
+                            <button type="button" class="btn btn-link text-danger p-0 ms-2" id="remove-file">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.password|as_crispy_field }}
+                        <div class="form-text text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            This password will be used to encrypt your file. Make sure to remember it for later access.
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100" id="upload-btn" disabled>
+                        <i class="fas fa-upload me-2"></i>Upload and Encrypt
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dropArea = document.getElementById('drop-area');
+    const fileInput = document.getElementById('file-input');
+    const browseBtn = document.getElementById('browse-btn');
+    const selectedFile = document.getElementById('selected-file');
+    const fileName = document.getElementById('file-name');
+    const removeFile = document.getElementById('remove-file');
+    const uploadBtn = document.getElementById('upload-btn');
+    const uploadForm = document.getElementById('upload-form');
+    
+    // Prevent default drag behaviors
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    // Highlight drop zone when item is dragged over it
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, unhighlight, false);
+    });
+    
+    // Handle dropped files
+    dropArea.addEventListener('drop', handleDrop, false);
+    
+    // Handle browse button
+    browseBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    // Handle file input change
+    fileInput.addEventListener('change', handleFiles);
+    
+    // Handle remove file
+    removeFile.addEventListener('click', () => {
+        fileInput.value = '';
+        selectedFile.style.display = 'none';
+        uploadBtn.disabled = true;
+    });
+    
+    function preventDefaults (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    function highlight(e) {
+        dropArea.classList.add('dragover');
+    }
+    
+    function unhighlight(e) {
+        dropArea.classList.remove('dragover');
+    }
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        handleFiles({
+            target: {
+                files: files
+            }
+        });
+    }
+    
+    function handleFiles(e) {
+        const file = e.target.files[0];
+        if (file) {
+            fileName.textContent = file.name;
+            selectedFile.style.display = 'block';
+            uploadBtn.disabled = false;
+        }
+    }
+});
+</script>
+{% endblock %} 

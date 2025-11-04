@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% load user_tags %}
+
+{% block title %}Profile Settings - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .profile-section {
+        margin-bottom: 2rem;
+    }
+    
+    .face-auth-preview {
+        width: 320px;
+        height: 240px;
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 1rem 0;
+        background-color: #f8f9fa00;
+    }
+    
+    .face-auth-preview.active {
+        border-style: solid;
+        border-color: var(--secondary-color);
+    }
+    
+    #videoElement {
+        width: 100%;
+        height: 100%;
+        border-radius: 6px;
+        display: none;
+    }
+    h5{
+        color: #ddd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Profile Settings</h2>
+                
+                <!-- Profile Form -->
+                <div class="profile-section">
+                    <h5 class="mb-3">Account Information</h5>
+                    <form method="post">
+                        {% csrf_token %}
+                        {% for field in form %}
+                            <div class="mb-3">
+                                <label class="form-label">{{ field.label }}</label>
+                                {{ field.errors }}
+                                {{ field|addclass:"form-control" }}
+                                {% if field.help_text %}
+                                    <small class="form-text text-muted">{{ field.help_text }}</small>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </form>
+                </div>
+                
+                <!-- Face Authentication Setup -->
+                <div class="profile-section">
+                    <h5 class="mb-3">Face Authentication</h5>
+                    <p class="text-muted">
+                        Set up face authentication for an additional layer of security.
+                        Your face data is encrypted and stored securely.
+                    </p>
+                    
+                    <div class="face-auth-preview">
+                        <video id="videoElement" autoplay playsinline></video>
+                        <div id="placeholderText" class="text-center text-muted">
+                            <i class="fas fa-camera fa-2x mb-2"></i><br>
+                            Camera preview will appear here
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button id="startCamera" class="btn btn-primary">
+                            <i class="fas fa-camera me-2"></i>Setup Face Auth
+                        </button>
+                        {% if user.use_face_auth %}
+                            <button id="disableFaceAuth" class="btn btn-outline-danger">
+                                <i class="fas fa-times me-2"></i>Disable Face Auth
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('videoElement');
+    const startButton = document.getElementById('startCamera');
+    const preview = document.querySelector('.face-auth-preview');
+    const placeholder = document.getElementById('placeholderText');
+    let stream = null;
+    
+    startButton.addEventListener('click', async function() {
+        try {
+            if (stream) {
+                stopCamera();
+                return;
+            }
+            
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            video.style.display = 'block';
+            placeholder.style.display = 'none';
+            preview.classList.add('active');
+            startButton.innerHTML = '<i class="fas fa-stop me-2"></i>Stop Camera';
+            
+            // Take photo after 3 seconds
+            setTimeout(() => {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                
+                // Convert to base64 and send to server
+                const imageData = canvas.toDataURL('image/jpeg');
+                setupFaceAuth(imageData);
+            }, 3000);
+            
+        } catch (err) {
+            console.error('Error:', err);
+            alert('Could not access camera. Please ensure you have granted camera permissions.');
+        }
+    });
+    
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+            video.style.display = 'none';
+            placeholder.style.display = 'block';
+            preview.classList.remove('active');
+            startButton.innerHTML = '<i class="fas fa-camera me-2"></i>Setup Face Auth';
+        }
+    }
+    
+    async function setupFaceAuth(imageData) {
+        try {
+            const response = await fetch('{% url "face-setup" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({ image: imageData })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Face authentication setup successful!');
+                location.reload();
+            } else {
+                alert(data.message || 'Setup failed. Please try again.');
+            }
+        } catch (err) {
+            console.error('Error:', err);
+            alert('An error occurred during setup. Please try again.');
+        } finally {
+            stopCamera();
+        }
+    }
+    
+    // Handle disable face auth
+    const disableButton = document.getElementById('disableFaceAuth');
+    if (disableButton) {
+        disableButton.addEventListener('click', async function() {
+            if (confirm('Are you sure you want to disable face authentication?')) {
+                try {
+                    const response = await fetch('{% url "face-setup" %}', {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        location.reload();
+                    } else {
+                        alert('Failed to disable face authentication. Please try again.');
+                    }
+                } catch (err) {
+                    console.error('Error:', err);
+                    alert('An error occurred. Please try again.');
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %} 
