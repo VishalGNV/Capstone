@@ -98,54 +98,83 @@ def file_list(request):
 
 @login_required
 def download_file(request, file_id):
-    encrypted_file = get_object_or_404(EncryptedFile, id=file_id, user=request.user)
-    action = request.GET.get('action', 'download')  # 'download' or 'view'
+    try:
+        encrypted_file = get_object_or_404(EncryptedFile, id=file_id, user=request.user)
+        action = request.GET.get('action', 'download')  # 'download' or 'view'
+        
+        print(f"Download request for file_id={file_id}, action={action}, user={request.user.username}")
+        
+        if request.method == 'POST':
+            form = FileDownloadForm(request.POST)
+            if form.is_valid():
+                try:
+                    # Check if encrypted file exists
+                    file_path = os.path.join(settings.ENCRYPTED_FILES_ROOT, encrypted_file.encrypted_path)
+                    if not os.path.exists(file_path):
+                        print(f"ERROR: Encrypted file not found at {file_path}")
+                        messages.error(request, 'File not found on server. It may have been deleted.')
+                        return redirect('file-list')
+                    
+                    # Get decrypted content
+                    decrypted_content = get_decrypted_file(
+                        encrypted_file.encrypted_path,
+                        form.cleaned_data['password'],
+                        encrypted_file.salt,
+                        encrypted_file.iv
+                    )
+                    
+                    print(f"File decrypted successfully: {encrypted_file.original_filename}")
+                    
+                    # Log access
+                    FileAccessLog.objects.create(
+                        file=encrypted_file,
+                        user=request.user,
+                        access_type=action,
+                        ip_address=request.META.get('REMOTE_ADDR'),
+                        user_agent=request.META.get('HTTP_USER_AGENT')
+                    )
+                    
+                    # Prepare response
+                    content_type = encrypted_file.file_type
+                    response = HttpResponse(decrypted_content, content_type=content_type)
+                    
+                    if action == 'download':
+                        response['Content-Disposition'] = f'attachment; filename="{encrypted_file.original_filename}"'
+                    else:
+                        # For viewing, use inline disposition
+                        response['Content-Disposition'] = f'inline; filename="{encrypted_file.original_filename}"'
+                    
+                    return response
+                
+                except ValueError as e:
+                    print(f"ERROR: Decryption failed - {str(e)}")
+                    messages.error(request, 'Invalid password. Please try again.')
+                    return render(request, 'vault/file_access.html', {
+                        'form': form,
+                        'file': encrypted_file,
+                        'action': action
+                    })
+                except Exception as e:
+                    print(f"ERROR accessing file: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    messages.error(request, 'An error occurred. Please try again or contact support.')
+                    return redirect('file-list')
+        else:
+            form = FileDownloadForm()
+        
+        return render(request, 'vault/file_access.html', {
+            'form': form,
+            'file': encrypted_file,
+            'action': action
+        })
     
-    if request.method == 'POST':
-        form = FileDownloadForm(request.POST)
-        if form.is_valid():
-            try:
-                # Get decrypted content
-                decrypted_content = get_decrypted_file(
-                    encrypted_file.encrypted_path,
-                    form.cleaned_data['password'],
-                    encrypted_file.salt,
-                    encrypted_file.iv
-                )
-                
-                # Log access
-                FileAccessLog.objects.create(
-                    file=encrypted_file,
-                    user=request.user,
-                    access_type=action,
-                    ip_address=request.META.get('REMOTE_ADDR'),
-                    user_agent=request.META.get('HTTP_USER_AGENT')
-                )
-                
-                # Prepare response
-                content_type = encrypted_file.file_type
-                response = HttpResponse(decrypted_content, content_type=content_type)
-                
-                if action == 'download':
-                    response['Content-Disposition'] = f'attachment; filename="{encrypted_file.original_filename}"'
-                else:
-                    # For viewing, use inline disposition
-                    response['Content-Disposition'] = f'inline; filename="{encrypted_file.original_filename}"'
-                
-                return response
-            
-            except Exception as e:
-                print(f"Error accessing file: {str(e)}")
-                messages.error(request, 'Invalid password or corrupted file.')
-                return redirect('file-list')
-    else:
-        form = FileDownloadForm()
-    
-    return render(request, 'vault/file_access.html', {
-        'form': form,
-        'file': encrypted_file,
-        'action': action
-    })
+    except Exception as e:
+        print(f"ERROR in download_file view: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        messages.error(request, 'An error occurred loading the file.')
+        return redirect('file-list')
 
 @login_required
 def delete_file(request, file_id):
