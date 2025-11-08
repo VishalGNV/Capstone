@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import dj_database_url
 
 # Load environment variables
 load_dotenv()
@@ -83,11 +84,12 @@ WSGI_APPLICATION = 'secure_vault.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# Use DATABASE_URL from environment if available (Render provides this), otherwise use SQLite
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600
+    )
 }
 
 
@@ -136,8 +138,8 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Encrypted files storage
-ENCRYPTED_FILES_ROOT = BASE_DIR / 'encrypted_files'
+# Encrypted files storage - use environment variable on Render
+ENCRYPTED_FILES_ROOT = os.getenv('ENCRYPTED_FILES_ROOT', str(BASE_DIR / 'encrypted_files'))
 
 # Authentication settings
 LOGIN_URL = 'login'

@@ -1,4 +1,4 @@
-# Upgrade core build tools first
+yea# Upgrade core build tools first
 pip>=25.3
 setuptools>=75.0.0
 wheel>=0.44.0
@@ -19,6 +19,15 @@ opencv-python==4.10.0.84
 click==8.1.7
 Flask==3.0.3
 gunicorn==23.0.0
+
+# Django and deployment
+Django>=5.1.6
+python-dotenv>=1.0.0
+crispy-bootstrap5>=0.7
+django-crispy-forms>=2.0
+whitenoise>=6.6.0
+dj-database-url==2.1.0
+psycopg2-binary==2.9.9
 
 # Use only prebuilt binaries to avoid compiling in Render
 --only-binary=:all:
