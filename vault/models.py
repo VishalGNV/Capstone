@@ -9,7 +9,8 @@ class EncryptedFile(models.Model):
     original_filename = models.CharField(max_length=255)
     file_type = models.CharField(max_length=100)
     file_size = models.BigIntegerField()
-    encrypted_path = models.CharField(max_length=255)
+    encrypted_path = models.CharField(max_length=255, blank=True)  # Keep for backwards compatibility
+    encrypted_data = models.BinaryField(null=True, blank=True)  # Store encrypted file in DB
     salt = models.BinaryField()
     iv = models.BinaryField()
     created_at = models.DateTimeField(auto_now_add=True)

@@ -24,21 +24,19 @@ def upload_file(request):
                 # Read file content
                 file_content = file.read()
                 
-                # Save encrypted file
-                encrypted_filename, salt, iv = save_encrypted_file(
-                    file_content,
-                    password,
-                    file.name
-                )
+                # Encrypt file data
+                from .utils import encrypt_file
+                encrypted_data, salt, iv = encrypt_file(file_content, password)
                 
-                # Create file record
+                # Create file record with encrypted data stored in DB
                 encrypted_file = EncryptedFile.objects.create(
                     user=request.user,
-                    filename=encrypted_filename,
+                    filename=file.name,
                     original_filename=file.name,
                     file_type=file.content_type or 'application/octet-stream',
                     file_size=file.size,
-                    encrypted_path=encrypted_filename,
+                    encrypted_path='',  # No longer using filesystem
+                    encrypted_data=encrypted_data,  # Store in database
                     salt=salt,
                     iv=iv
                 )
@@ -57,6 +55,8 @@ def upload_file(request):
             
             except Exception as e:
                 print(f"Error uploading file: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 messages.error(request, 'Error uploading file. Please try again.')
                 return redirect('upload-file')
     else:
@@ -108,24 +108,20 @@ def download_file(request, file_id):
             form = FileDownloadForm(request.POST)
             if form.is_valid():
                 try:
-                    # Check if encrypted file exists
-                    file_path = os.path.join(settings.ENCRYPTED_FILES_ROOT, encrypted_file.encrypted_path)
-                    if not os.path.exists(file_path):
-                        print(f"ERROR: Encrypted file not found at {file_path}")
-                        messages.error(request, 'File not found on server. It may have been deleted.')
+                    # Check if encrypted data exists in database
+                    if not encrypted_file.encrypted_data:
+                        print(f"ERROR: Encrypted data not found for file_id={file_id}")
+                        messages.error(request, 'File data not found. It may have been corrupted.')
                         return redirect('file-list')
                     
-                    # Convert salt and IV from hex string to bytes
-                    import binascii
-                    salt_bytes = binascii.unhexlify(encrypted_file.salt)
-                    iv_bytes = binascii.unhexlify(encrypted_file.iv)
-                    
-                    # Get decrypted content
-                    decrypted_content = get_decrypted_file(
-                        encrypted_file.encrypted_path,
+                    # Convert salt and IV from bytes (already in correct format from DB)
+                    # Decrypt file from database
+                    from .utils import decrypt_file
+                    decrypted_content = decrypt_file(
+                        encrypted_file.encrypted_data,
                         form.cleaned_data['password'],
-                        salt_bytes,
-                        iv_bytes
+                        bytes(encrypted_file.salt),
+                        bytes(encrypted_file.iv)
                     )
                     
                     print(f"File decrypted successfully: {encrypted_file.original_filename}")
@@ -189,27 +185,22 @@ def delete_file(request, file_id):
         form = FileDownloadForm(request.POST)
         if form.is_valid():
             try:
-                # Convert salt and IV from hex string to bytes
-                import binascii
-                salt_bytes = binascii.unhexlify(encrypted_file.salt)
-                iv_bytes = binascii.unhexlify(encrypted_file.iv)
-                
-                # Verify password
+                # Convert salt and IV from bytes (already in correct format from DB)
+                # Verify password by attempting decryption
+                from .utils import decrypt_file
                 try:
-                    get_decrypted_file(
-                        encrypted_file.encrypted_path,
+                    decrypt_file(
+                        encrypted_file.encrypted_data,
                         form.cleaned_data['password'],
-                        salt_bytes,
-                        iv_bytes
+                        bytes(encrypted_file.salt),
+                        bytes(encrypted_file.iv)
                     )
                 except Exception:
                     messages.error(request, 'Invalid password.')
                     return redirect('file-list')
                 
-                # Delete physical file
-                file_path = os.path.join(settings.ENCRYPTED_FILES_ROOT, encrypted_file.encrypted_path)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
+                # Delete database record (encrypted_data is in DB, no filesystem cleanup needed)
+                encrypted_file.delete()
                 
                 # Log deletion
                 FileAccessLog.objects.create(
@@ -219,9 +210,6 @@ def delete_file(request, file_id):
                     ip_address=request.META.get('REMOTE_ADDR'),
                     user_agent=request.META.get('HTTP_USER_AGENT')
                 )
-                
-                # Delete database record
-                encrypted_file.delete()
                 
                 messages.success(request, 'File deleted successfully.')
             except Exception as e:
