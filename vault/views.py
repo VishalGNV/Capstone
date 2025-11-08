@@ -110,23 +110,25 @@ def download_file(request, file_id):
                 try:
                     # Check if encrypted file exists
                     file_path = os.path.join(settings.ENCRYPTED_FILES_ROOT, encrypted_file.encrypted_path)
-                if not os.path.exists(file_path):
-                    print(f"ERROR: Encrypted file not found at {file_path}")
-                    messages.error(request, 'File not found on server. It may have been deleted.')
-                    return redirect('file-list')
-                
-                # Convert salt and IV from hex string to bytes
-                import binascii
-                salt_bytes = binascii.unhexlify(encrypted_file.salt)
-                iv_bytes = binascii.unhexlify(encrypted_file.iv)
-                
-                # Get decrypted content
-                decrypted_content = get_decrypted_file(
-                    encrypted_file.encrypted_path,
-                    form.cleaned_data['password'],
-                    salt_bytes,
-                    iv_bytes
-                )                    print(f"File decrypted successfully: {encrypted_file.original_filename}")
+                    if not os.path.exists(file_path):
+                        print(f"ERROR: Encrypted file not found at {file_path}")
+                        messages.error(request, 'File not found on server. It may have been deleted.')
+                        return redirect('file-list')
+                    
+                    # Convert salt and IV from hex string to bytes
+                    import binascii
+                    salt_bytes = binascii.unhexlify(encrypted_file.salt)
+                    iv_bytes = binascii.unhexlify(encrypted_file.iv)
+                    
+                    # Get decrypted content
+                    decrypted_content = get_decrypted_file(
+                        encrypted_file.encrypted_path,
+                        form.cleaned_data['password'],
+                        salt_bytes,
+                        iv_bytes
+                    )
+                    
+                    print(f"File decrypted successfully: {encrypted_file.original_filename}")
                     
                     # Log access
                     FileAccessLog.objects.create(
